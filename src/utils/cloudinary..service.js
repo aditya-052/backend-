@@ -28,6 +28,7 @@ import fs from "fs";
         catch(error){
             fs.unlinkSync(localFilePath);
             //remove the locally saved temporary file as the upload has been failed
+            return null;
         }
     }
 
@@ -46,4 +47,6 @@ import fs from "fs";
     });
  
  console.log(uploadResult);
+
+ export {uploadOnCloudinary}
    
