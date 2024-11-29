@@ -4,6 +4,27 @@ import { User} from "../models/user.models.js"
 import {uploadOnCloudinary} from "../utils/cloudinary.service.js"
 import { ApiResponse } from "../utils/ApiResponse.js";
 
+const generateAccessAndRefreshToken= async(userId) => {
+
+    try {
+    const user = await User.findById(userId)
+    const accessToken = user.generateAccesstoken()
+    const refreshToken = user.generateRefresjtoken()
+
+    user.refreshToken = refreshToken 
+    // we have to save the refresh token into the database and user is present in the db as object so save the key and value of the refreshToken using the above method
+
+    await user.save({validateBeforeSave : false })
+    //after adding the refreshToken in the user object we have to make the changes save or permanent so use the method user.save  //validateBeforeSave means we know what we have done and db is not required to validate the changes done
+
+    return {accessToken,refreshToken}
+
+
+    } catch (error) {
+        throw new ApiError(500,"Something went wrong on our side while generating the access and refresh token")
+    }
+}
+
 const registerUser = asyncHandler( async (req,res)=>{
 
     //HOW TO REGISTER THE USER
@@ -86,7 +107,66 @@ const registerUser = asyncHandler( async (req,res)=>{
 } )
 
 
+//Login to the User
+const loginUser =asyncHandler(async (req,res) =>{
+    //req body -> data
+    //validate if the user with email or username exist in the database
+    //if not found throw ApiError for the user not found
+    //if user found check the password
+    //generate access(short term) and refresh(long term) token
+    //send cookie(secure) or responce
+
+    const { userName , email , password }=req.body
+
+    if(!userName || !email){
+        throw new ApiError(400," Username or Email is required ")
+    }
+
+    const user = User.findOne({
+        $or :[{userName},{email}]
+    })
+
+    if(!user){
+        throw new ApiError(400,"user not found")
+    }
+
+    const isPasswordValid = await user.isPasswordCorrect(password)
+
+    if(!isPasswordValid){
+        throw new ApiError(401,"incorrect password || Invalid User Credentials")
+    }
+
+    const {accessToken,refreshToken} = await generateAccessAndRefreshToken(user._id)
+
+    const loggedInUser =await user.findById(User._id).select("-password -refreshToken")
+
+    const options={
+        httpOnly:true,         //now can be managed only from the server and changes are not made from the frontEnd            
+        secure:true                       
+    }
+
+        return res
+        .status(200)
+        .cookie("accessToken",accessToken,options)
+        .cookie("refreshToken",refreshToken,options)
+        .json(
+            new ApiResponse(
+                200,
+                {
+                    user : loggedInUser,accessToken,refreshToken
+                    //me ek object bhejna chahta hu user , user ke andar kya kya bhejna chahta hun  loggedInUser,accessToken,refreshToken
+                },
+                "User is logged in Successfully"
+            )
+        )
+
+      
+})
+
+
+
 
 export {
     registerUser,
+    loginUser
 }
